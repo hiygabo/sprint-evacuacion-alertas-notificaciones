@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { Trash2, Plus, Pencil, Power, PowerOff, X } from 'lucide-react';
+import { Plus, Pencil, Power, PowerOff, X } from 'lucide-react';
 import {
     directorioService,
     macrodistritosService,
@@ -39,6 +39,8 @@ export function PanelAdminPage() {
     const [directorio, setDirectorio] = useState<any[]>([]);
 
     // Form Punto Evacuación
+    const formPuntoRef = useRef<HTMLFormElement>(null);
+    const [editandoPuntoId, setEditandoPuntoId] = useState<number | null>(null);
     const [nombre, setNombre] = useState('');
     const [direccion, setDireccion] = useState('');
     const [descripcion, setDescripcion] = useState('');
@@ -68,21 +70,62 @@ export function PanelAdminPage() {
         cargarDatos().catch(console.error);
     }, []);
 
-    const handleCrearPunto = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!idMacro) return alert('Selecciona un macrodistrito');
-        await puntosService.create({
-            nombre,
-            direccion,
-            descripcion,
-            latitud,
-            longitud,
-            idMacrodistrito: Number(idMacro),
-        });
+    const limpiarFormularioPunto = () => {
+        setEditandoPuntoId(null);
         setNombre('');
         setDireccion('');
         setDescripcion('');
-        cargarDatos();
+        setIdMacro('');
+        setLatitud(-16.4897);
+        setLongitud(-68.1193);
+    };
+
+    const handleGuardarPunto = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!idMacro) return alert('Selecciona un macrodistrito');
+
+        try {
+            const datos = {
+                nombre: nombre.trim(),
+                direccion: direccion.trim(),
+                descripcion: descripcion.trim(),
+                latitud,
+                longitud,
+                idMacrodistrito: Number(idMacro),
+            };
+
+            if (editandoPuntoId !== null) {
+                await puntosService.update(editandoPuntoId, datos);
+            } else {
+                await puntosService.create(datos);
+            }
+
+            limpiarFormularioPunto();
+            await cargarDatos();
+        } catch {
+            alert('No se pudo guardar el punto de evacuación.');
+        }
+    };
+
+    const handleEditarPunto = (punto: any) => {
+        setEditandoPuntoId(punto.id);
+        setNombre(punto.nombre ?? '');
+        setDireccion(punto.direccion ?? '');
+        setDescripcion(punto.descripcion ?? '');
+        setIdMacro(String(punto.macrodistrito?.id ?? ''));
+        setLatitud(Number(punto.ubicacion?.coordinates?.[1] ?? -16.4897));
+        setLongitud(Number(punto.ubicacion?.coordinates?.[0] ?? -68.1193));
+        formPuntoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const handleTogglePunto = async (punto: any) => {
+        try {
+            await puntosService.setActivo(punto.id, !punto.activo);
+            if (editandoPuntoId === punto.id) limpiarFormularioPunto();
+            await cargarDatos();
+        } catch {
+            alert('No se pudo cambiar el estado del punto de evacuación.');
+        }
     };
 
     const limpiarFormularioDirectorio = () => {
@@ -176,14 +219,18 @@ export function PanelAdminPage() {
             {subTab === 'puntos' ? (
                 <div className="space-y-6">
                     <form
-                        onSubmit={handleCrearPunto}
-                        className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm space-y-4"
+                        ref={formPuntoRef}
+                        onSubmit={handleGuardarPunto}
+                        className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm space-y-4 scroll-mt-24"
                     >
                         <h2 className="text-xl font-semibold text-zinc-900">
-                            Registrar Punto de Evacuación
+                            {editandoPuntoId !== null
+                                ? 'Editar Punto de Evacuación'
+                                : 'Registrar Punto de Evacuación'}
                         </h2>
                         <p className="text-xs text-zinc-500">
-                            Haz clic en el mapa para fijar automáticamente las coordenadas.
+                            Haz clic en el mapa para fijar automáticamente las coordenadas. Los
+                            puntos inactivos no se muestran en el mapa público.
                         </p>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -239,9 +286,28 @@ export function PanelAdminPage() {
                                     type="submit"
                                     className="min-h-[44px] px-5 py-2.5 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
                                 >
-                                    <Plus className="w-4 h-4" />
-                                    Guardar Punto
+                                    {editandoPuntoId !== null ? (
+                                        <>
+                                            <Pencil className="w-4 h-4" />
+                                            Guardar Cambios
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus className="w-4 h-4" />
+                                            Guardar Punto
+                                        </>
+                                    )}
                                 </button>
+                                {editandoPuntoId !== null && (
+                                    <button
+                                        type="button"
+                                        onClick={limpiarFormularioPunto}
+                                        className="min-h-[44px] px-5 py-2.5 bg-white border border-zinc-200 text-zinc-900 font-semibold rounded-lg hover:bg-zinc-50 transition-colors flex items-center gap-2"
+                                    >
+                                        <X className="w-4 h-4" />
+                                        Cancelar
+                                    </button>
+                                )}
                             </div>
 
                             <div className="rounded-lg overflow-hidden border border-zinc-200 min-h-[280px]">
@@ -270,34 +336,76 @@ export function PanelAdminPage() {
                                 <th className="py-3.5 px-6">Nombre</th>
                                 <th className="py-3.5 px-6">Macrodistrito</th>
                                 <th className="py-3.5 px-6">Coordenadas (Lat, Lng)</th>
-                                <th className="py-3.5 px-6 text-right">Acción</th>
+                                <th className="py-3.5 px-6">Estado</th>
+                                <th className="py-3.5 px-6 text-right">Acciones</th>
                             </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-200 text-sm">
-                            {puntos.map((p) => (
-                                <tr key={p.id}>
-                                    <td className="py-4 px-6 font-semibold text-zinc-900">
-                                        {p.nombre}
-                                    </td>
-                                    <td className="py-4 px-6">{p.macrodistrito?.nombre}</td>
-                                    <td className="py-4 px-6 font-medium text-zinc-600">
-                                        {p.ubicacion?.coordinates?.[1]},{' '}
-                                        {p.ubicacion?.coordinates?.[0]}
-                                    </td>
-                                    <td className="py-4 px-6 text-right">
-                                        <button
-                                            onClick={async () => {
-                                                await puntosService.remove(p.id);
-                                                cargarDatos();
-                                            }}
-                                            className="min-h-[44px] px-3 py-2 bg-rose-600 text-white font-semibold rounded-lg hover:bg-rose-700 inline-flex items-center gap-1.5"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                            Eliminar
-                                        </button>
+                            {puntos.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="py-8 text-center text-zinc-500">
+                                        No hay puntos de evacuación registrados.
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                puntos.map((p) => (
+                                    <tr
+                                        key={p.id}
+                                        className={p.activo ? '' : 'bg-zinc-50/70 text-zinc-500'}
+                                    >
+                                        <td className="py-4 px-6 font-semibold text-zinc-900">
+                                            {p.nombre}
+                                        </td>
+                                        <td className="py-4 px-6">{p.macrodistrito?.nombre}</td>
+                                        <td className="py-4 px-6 font-medium text-zinc-600">
+                                            {p.ubicacion?.coordinates?.[1]},{' '}
+                                            {p.ubicacion?.coordinates?.[0]}
+                                        </td>
+                                        <td className="py-4 px-6">
+                                            <span
+                                                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                                                    p.activo
+                                                        ? 'bg-emerald-100 text-emerald-800'
+                                                        : 'bg-zinc-200 text-zinc-600'
+                                                }`}
+                                            >
+                                                {p.activo ? 'Activo' : 'Inactivo'}
+                                            </span>
+                                        </td>
+                                        <td className="py-4 px-6 text-right">
+                                            <div className="inline-flex flex-wrap items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleEditarPunto(p)}
+                                                    className="min-h-[44px] px-3 py-2 bg-transparent border border-zinc-200 text-zinc-900 font-semibold rounded-lg hover:bg-zinc-50 inline-flex items-center gap-1.5"
+                                                >
+                                                    <Pencil className="w-4 h-4" />
+                                                    Editar
+                                                </button>
+                                                <button
+                                                    onClick={() => handleTogglePunto(p)}
+                                                    className={`min-h-[44px] px-3 py-2 font-semibold rounded-lg inline-flex items-center gap-1.5 ${
+                                                        p.activo
+                                                            ? 'bg-amber-500 text-white hover:bg-amber-600'
+                                                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                                    }`}
+                                                >
+                                                    {p.activo ? (
+                                                        <>
+                                                            <PowerOff className="w-4 h-4" />
+                                                            Desactivar
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Power className="w-4 h-4" />
+                                                            Activar
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                             </tbody>
                         </table>
                     </div>

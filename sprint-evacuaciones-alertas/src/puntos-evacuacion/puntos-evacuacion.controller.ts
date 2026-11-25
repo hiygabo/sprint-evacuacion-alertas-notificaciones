@@ -22,6 +22,14 @@ export class PuntosEvacuacionController {
     return this.puntosEvacuacionService.findOne(+id);
   }
 
+  @Patch(':id/activo')
+  cambiarActivo(
+      @Param('id') id: string,
+      @Body('activo') activo: boolean,
+  ) {
+    return this.puntosEvacuacionService.cambiarActivo(+id, activo);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() updatePuntosEvacuacionDto: UpdatePuntosEvacuacionDto) {
     return this.puntosEvacuacionService.update(+id, updatePuntosEvacuacionDto);

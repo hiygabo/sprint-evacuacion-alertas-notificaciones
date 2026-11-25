@@ -41,6 +41,8 @@ export const puntosService = {
     }) => api.post('/puntos-evacuacion', data).then((res) => res.data),
     update: (id: number, data: any) =>
         api.patch(`/puntos-evacuacion/${id}`, data).then((res) => res.data),
+    setActivo: (id: number, activo: boolean) =>
+        api.patch(`/puntos-evacuacion/${id}/activo`, { activo }).then((res) => res.data),
     remove: (id: number) => api.delete(`/puntos-evacuacion/${id}`).then((res) => res.data),
 };
 
