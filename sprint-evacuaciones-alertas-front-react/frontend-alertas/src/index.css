@@ -1,0 +1,8 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #F4F4F5; /* Zinc 100 */
+  color: #18181B; /* Zinc 900 */
+}
