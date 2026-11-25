@@ -22,6 +22,14 @@ export class DirectorioController {
     return this.directorioService.findOne(+id);
   }
 
+  @Patch(':id/habilitado')
+  cambiarHabilitado(
+      @Param('id') id: string,
+      @Body('habilitado') habilitado: boolean,
+  ) {
+    return this.directorioService.cambiarHabilitado(+id, habilitado);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateDirectorioDto: UpdateDirectorioDto) {
     return this.directorioService.update(+id, updateDirectorioDto);

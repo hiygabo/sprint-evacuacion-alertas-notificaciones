@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, Pencil, Power, PowerOff, X } from 'lucide-react';
 import {
     directorioService,
     macrodistritosService,
@@ -47,6 +47,8 @@ export function PanelAdminPage() {
     const [longitud, setLongitud] = useState<number>(-68.1193);
 
     // Form Directorio
+    const formDirectorioRef = useRef<HTMLFormElement>(null);
+    const [editandoDirectorioId, setEditandoDirectorioId] = useState<number | null>(null);
     const [entidad, setEntidad] = useState('');
     const [servicio, setServicio] = useState('');
     const [telefono, setTelefono] = useState('');
@@ -83,18 +85,56 @@ export function PanelAdminPage() {
         cargarDatos();
     };
 
-    const handleCrearDirectorio = async (e: React.FormEvent) => {
-        e.preventDefault();
-        await directorioService.create({
-            entidad,
-            servicio,
-            telefono,
-            habilitado: true,
-        });
+    const limpiarFormularioDirectorio = () => {
+        setEditandoDirectorioId(null);
         setEntidad('');
         setServicio('');
         setTelefono('');
-        cargarDatos();
+    };
+
+    const handleGuardarDirectorio = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!entidad.trim() || !servicio.trim() || !telefono.trim()) {
+            alert('Completa entidad, servicio y teléfono.');
+            return;
+        }
+
+        try {
+            const datos = {
+                entidad: entidad.trim(),
+                servicio: servicio.trim(),
+                telefono: telefono.trim(),
+            };
+
+            if (editandoDirectorioId !== null) {
+                await directorioService.update(editandoDirectorioId, datos);
+            } else {
+                await directorioService.create({ ...datos, habilitado: true });
+            }
+
+            limpiarFormularioDirectorio();
+            await cargarDatos();
+        } catch {
+            alert('No se pudo guardar el contacto de emergencia.');
+        }
+    };
+
+    const handleEditarDirectorio = (item: any) => {
+        setEditandoDirectorioId(item.id);
+        setEntidad(item.entidad);
+        setServicio(item.servicio);
+        setTelefono(item.telefono);
+        formDirectorioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const handleToggleDirectorio = async (item: any) => {
+        try {
+            await directorioService.setHabilitado(item.id, !item.habilitado);
+            if (editandoDirectorioId === item.id) limpiarFormularioDirectorio();
+            await cargarDatos();
+        } catch {
+            alert('No se pudo cambiar el estado del contacto.');
+        }
     };
 
     return (
@@ -265,12 +305,20 @@ export function PanelAdminPage() {
             ) : (
                 <div className="space-y-6">
                     <form
-                        onSubmit={handleCrearDirectorio}
-                        className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm space-y-4"
+                        ref={formDirectorioRef}
+                        onSubmit={handleGuardarDirectorio}
+                        className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm space-y-4 scroll-mt-24"
                     >
-                        <h2 className="text-xl font-semibold text-zinc-900">
-                            Agregar Contacto de Emergencia
-                        </h2>
+                        <div>
+                            <h2 className="text-xl font-semibold text-zinc-900">
+                                {editandoDirectorioId !== null
+                                    ? 'Editar Contacto de Emergencia'
+                                    : 'Agregar Contacto de Emergencia'}
+                            </h2>
+                            <p className="text-xs text-zinc-500 pt-1">
+                                Los contactos inactivos no se muestran en el directorio público.
+                            </p>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <input
                                 type="text"
@@ -297,13 +345,34 @@ export function PanelAdminPage() {
                                 className="w-full min-h-[44px] px-4 py-2 bg-white border border-zinc-200 rounded-lg text-zinc-800 focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/15"
                             />
                         </div>
-                        <button
-                            type="submit"
-                            className="min-h-[44px] px-5 py-2.5 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Guardar Contacto
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="submit"
+                                className="min-h-[44px] px-5 py-2.5 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
+                            >
+                                {editandoDirectorioId !== null ? (
+                                    <>
+                                        <Pencil className="w-4 h-4" />
+                                        Guardar Cambios
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus className="w-4 h-4" />
+                                        Guardar Contacto
+                                    </>
+                                )}
+                            </button>
+                            {editandoDirectorioId !== null && (
+                                <button
+                                    type="button"
+                                    onClick={limpiarFormularioDirectorio}
+                                    className="min-h-[44px] px-5 py-2.5 bg-white border border-zinc-200 text-zinc-900 font-semibold rounded-lg hover:bg-zinc-50 transition-colors flex items-center gap-2"
+                                >
+                                    <X className="w-4 h-4" />
+                                    Cancelar
+                                </button>
+                            )}
+                        </div>
                     </form>
 
                     <div className="bg-white border border-zinc-200 rounded-lg shadow-sm overflow-x-auto">
@@ -313,31 +382,73 @@ export function PanelAdminPage() {
                                 <th className="py-3.5 px-6">Entidad</th>
                                 <th className="py-3.5 px-6">Servicio</th>
                                 <th className="py-3.5 px-6">Teléfono</th>
-                                <th className="py-3.5 px-6 text-right">Acción</th>
+                                <th className="py-3.5 px-6">Estado</th>
+                                <th className="py-3.5 px-6 text-right">Acciones</th>
                             </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-200 text-sm">
-                            {directorio.map((d) => (
-                                <tr key={d.id}>
-                                    <td className="py-4 px-6 font-semibold text-zinc-900">
-                                        {d.entidad}
-                                    </td>
-                                    <td className="py-4 px-6">{d.servicio}</td>
-                                    <td className="py-4 px-6 font-medium">{d.telefono}</td>
-                                    <td className="py-4 px-6 text-right">
-                                        <button
-                                            onClick={async () => {
-                                                await directorioService.remove(d.id);
-                                                cargarDatos();
-                                            }}
-                                            className="min-h-[44px] px-3 py-2 bg-rose-600 text-white font-semibold rounded-lg hover:bg-rose-700 inline-flex items-center gap-1.5"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                            Eliminar
-                                        </button>
+                            {directorio.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="py-8 text-center text-zinc-500">
+                                        No hay contactos de emergencia registrados.
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                directorio.map((d) => (
+                                    <tr
+                                        key={d.id}
+                                        className={d.habilitado ? '' : 'bg-zinc-50/70 text-zinc-500'}
+                                    >
+                                        <td className="py-4 px-6 font-semibold text-zinc-900">
+                                            {d.entidad}
+                                        </td>
+                                        <td className="py-4 px-6">{d.servicio}</td>
+                                        <td className="py-4 px-6 font-medium">{d.telefono}</td>
+                                        <td className="py-4 px-6">
+                                            <span
+                                                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                                                    d.habilitado
+                                                        ? 'bg-emerald-100 text-emerald-800'
+                                                        : 'bg-zinc-200 text-zinc-600'
+                                                }`}
+                                            >
+                                                {d.habilitado ? 'Activo' : 'Inactivo'}
+                                            </span>
+                                        </td>
+                                        <td className="py-4 px-6 text-right">
+                                            <div className="inline-flex flex-wrap items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleEditarDirectorio(d)}
+                                                    className="min-h-[44px] px-3 py-2 bg-transparent border border-zinc-200 text-zinc-900 font-semibold rounded-lg hover:bg-zinc-50 inline-flex items-center gap-1.5"
+                                                >
+                                                    <Pencil className="w-4 h-4" />
+                                                    Editar
+                                                </button>
+                                                <button
+                                                    onClick={() => handleToggleDirectorio(d)}
+                                                    className={`min-h-[44px] px-3 py-2 font-semibold rounded-lg inline-flex items-center gap-1.5 ${
+                                                        d.habilitado
+                                                            ? 'bg-amber-500 text-white hover:bg-amber-600'
+                                                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                                    }`}
+                                                >
+                                                    {d.habilitado ? (
+                                                        <>
+                                                            <PowerOff className="w-4 h-4" />
+                                                            Desactivar
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Power className="w-4 h-4" />
+                                                            Activar
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                             </tbody>
                         </table>
                     </div>

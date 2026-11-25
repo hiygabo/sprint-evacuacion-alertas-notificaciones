@@ -10,11 +10,21 @@ export const macrodistritosService = {
 };
 
 // 2. Directorio de Emergencias
+export interface DirectorioPayload {
+    entidad: string;
+    servicio: string;
+    telefono: string;
+    habilitado?: boolean;
+}
+
 export const directorioService = {
     getAll: () => api.get('/directorio').then((res) => res.data),
-    create: (data: { entidad: string; servicio: string; telefono: string; habilitado?: boolean }) =>
+    create: (data: DirectorioPayload) =>
         api.post('/directorio', data).then((res) => res.data),
-    update: (id: number, data: any) => api.patch(`/directorio/${id}`, data).then((res) => res.data),
+    update: (id: number, data: Partial<DirectorioPayload>) =>
+        api.patch(`/directorio/${id}`, data).then((res) => res.data),
+    setHabilitado: (id: number, habilitado: boolean) =>
+        api.patch(`/directorio/${id}/habilitado`, { habilitado }).then((res) => res.data),
     remove: (id: number) => api.delete(`/directorio/${id}`).then((res) => res.data),
 };
 
